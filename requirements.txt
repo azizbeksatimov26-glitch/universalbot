@@ -1,2 +1,4 @@
 pyTelegramBotAPI
-pip install pyTelegramBotAPI requests gTTS
+pyTelegramBotAPI
+requests
+gTTS

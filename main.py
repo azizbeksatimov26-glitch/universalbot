@@ -4,8 +4,8 @@ from gtts import gTTS
 import requests
 import os
 
-# Tokeningizni shu yerga yozing
-TOKEN = 'YOUR_BOT_TOKEN_HERE'
+# 1. BOT TOKENINGIZNI SHU YERGA YOZING
+TOKEN = 'BU_YERGA_TOKENNI_QOYING'
 bot = telebot.TeleBot(TOKEN)
 
 # Tugmalar menyusi
@@ -20,31 +20,32 @@ def main_menu():
 
 @bot.message_handler(commands=['start'])
 def start(message):
-    bot.send_message(message.chat.id, f"Salom {message.from_user.first_name}! Kerakli bo'limni tanlang:", reply_markup=main_menu())
+    bot.send_message(message.chat.id, f"Salom {message.from_user.first_name}! Bo'limni tanlang:", reply_markup=main_menu())
 
 @bot.message_handler(func=lambda message: True)
-def handle_text(message):
-    if message.text == 'Insta link 🔗':
+def handle_all_messages(message):
+    txt = message.text
+
+    if txt == 'Insta link 🔗':
         bot.send_message(message.chat.id, "Instagram video linkini yuboring...")
     
-    elif message.text == 'Voice message 🎤':
+    elif txt == 'Voice message 🎤':
         msg = bot.send_message(message.chat.id, "Ovozga aylantirish uchun matn yozing:")
         bot.register_next_step_handler(msg, text_to_voice)
     
-    elif message.text == 'Qo\'lda yozilgan matn ✍️':
+    elif txt == 'Qo\'lda yozilgan matn ✍️':
         msg = bot.send_message(message.chat.id, "Listga yozish uchun matn yuboring:")
         bot.register_next_step_handler(msg, text_to_handwriting)
     
-    elif message.text == 'Dollar kursi 💵':
+    elif txt == 'Dollar kursi 💵':
         get_currency(message)
     
-    # Instagram linkini tekshirish
-    elif 'instagram.com' in message.text:
-        bot.send_message(message.chat.id, "Video yuklanmoqda, kuting...")
-        # Bu yerda API orqali yuklash kodi bo'ladi (RapidAPI kabi xizmatlar kerak)
-        bot.send_message(message.chat.id, "Instagram yuklash uchun tashqi API ulanishi lozim.")
+    # Agar foydalanuvchi shunchaki Instagram link yuborsa
+    elif 'instagram.com' in txt:
+        bot.send_message(message.chat.id, "Tez orada video yuklab berish funksiyasi to'liq ishga tushadi. Hozircha bazani sozlayapman!")
 
-# 1. Matnni ovozli qilish (gTTS)
+# --- FUNKSIYALAR ---
+
 def text_to_voice(message):
     try:
         tts = gTTS(text=message.text, lang='uz')
@@ -53,35 +54,32 @@ def text_to_voice(message):
             bot.send_voice(message.chat.id, voice)
         os.remove("voice.ogg")
     except Exception as e:
-        bot.send_message(message.chat.id, "Xatolik yuz berdi!")
+        bot.send_message(message.chat.id, "Xatolik! Balki matn juda qisqadir.")
 
-# 2. Qo'lda yozilgan matn (API orqali)
 def text_to_handwriting(message):
     try:
+        # Bu bepul API matnni listga yozilgan rasmga aylantiradi
         txt = message.text.replace(" ", "%20")
-        img_url = f"https://py Whatsa.pythonanywhere.com/write/?text={txt}" # Namuna API
-        bot.send_photo(message.chat.id, img_url, caption="Mana sizning matningiz!")
+        img_url = f"https://py Whatsa.pythonanywhere.com/write/?text={txt}" 
+        bot.send_photo(message.chat.id, img_url, caption="Mana, qo'lda yozilgan matn! ✍️")
     except:
-        bot.send_message(message.chat.id, "Rasm yaratishda xatolik!")
+        bot.send_message(message.chat.id, "Rasm yaratishda xatolik yuz berdi.")
 
-# 3. Dollar kursi
 def get_currency(message):
-    url = "https://cbu.uz/uz/arkhiv-kursov-valyut/json/"
-    response = requests.get(url).json()
-    
-    usd_rate = 0
-    date = ""
-    for item in response:
-        if item['Ccy'] == 'USD':
-            usd_rate = float(item['Rate'])
-            date = item['Diff']
-            break
-    
-    text = f"📅 Bugun: {message.date}\n\n"
-    text += f"🇺🇸 1 Dollar = {usd_rate} so'm\n"
-    text += f"🇺🇸 100 Dollar = {usd_rate * 100} so'm\n"
-    text += f"\nO'zgarish: {date} so'm"
-    
-    bot.send_message(message.chat.id, text)
+    try:
+        url = "https://cbu.uz/uz/arkhiv-kursov-valyut/json/"
+        response = requests.get(url).json()
+        
+        usd_rate = next(item for item in response if item['Ccy'] == 'USD')
+        rate = float(usd_rate['Rate'])
+        
+        msg_text = (f"📅 Bugungi sana: {usd_rate['Date']}\n\n"
+                    f"🇺🇸 1 Dollar = {rate} so'm\n"
+                    f"🇺🇸 100 Dollar = {rate * 100:,} so'm\n"
+                    f"📈 O'zgarish: {usd_rate['Diff']} so'm")
+        bot.send_message(message.chat.id, msg_text)
+    except:
+        bot.send_message(message.chat.id, "Kurs ma'lumotlarini olib bo'lmadi.")
 
+# Botni to'xtovsiz ishlashi uchun
 bot.polling(none_stop=True)
