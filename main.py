@@ -3,6 +3,7 @@ from telebot import types
 from gtts import gTTS
 import requests
 import os
+import uuid
 
 # 1. TOKENINGIZ
 TOKEN = '8097762695:AAEtk5yvY1ZWfrK9QYaw3WMUgf9Pj8ag8sY'
@@ -21,8 +22,8 @@ def main_menu():
 @bot.message_handler(commands=['start'])
 def start(message):
     bot.send_message(message.chat.id, 
-                     f"Salom {message.from_user.first_name}! Bot yangilandi.\n"
-                     f"Video yuklash uchun link yuboring, ovoz uchun matn yozing.", 
+                     f"Salom {message.from_user.first_name}! Barcha xatolar tuzatildi. ✅\n"
+                     f"Marhamat, bo'limni tanlang:", 
                      reply_markup=main_menu())
 
 @bot.message_handler(func=lambda message: True)
@@ -30,77 +31,69 @@ def handle_all_messages(message):
     txt = message.text
 
     if txt == 'Insta link 🔗':
-        bot.send_message(message.chat.id, "Menga Instagram Reels yoki Video linkini yuboring...")
-    
+        bot.send_message(message.chat.id, "Instagram linkini yuboring...")
     elif txt == 'Voice message 🎤':
-        bot.send_message(message.chat.id, "Ovozli xabarga aylantirish uchun istalgan matningizni yozib yuboring.")
-    
+        bot.send_message(message.chat.id, "Matn yozing, ovoz qilib beraman.")
     elif txt == 'Qo\'lda yozilgan matn ✍️':
         msg = bot.send_message(message.chat.id, "Daftarga yozish uchun matn yuboring:")
         bot.register_next_step_handler(msg, text_to_handwriting)
-    
     elif txt == 'Dollar kursi 💵':
         get_currency(message)
-
     elif txt == 'Ob-havo ☁️':
-        # Andijon ob-havosini avtomat olish (oddiyroq usul)
         bot.send_message(message.chat.id, "🌤 Andijon viloyati: +28°C, havo ochiq.")
-
     elif 'instagram.com' in txt:
         download_insta_video(message)
-    
     else:
-        # AGAR LINK BO'LMASA, AVTOMAT OVOZ QILISH
         text_to_voice(message)
 
-# --- OVOZLI XABAR FUNKSIYASI ---
+# --- OVOZNI TUZATISH ---
 def text_to_voice(message):
+    # Fayl nomi bir xil bo'lib qolmasligi uchun UUID ishlatamiz
+    file_name = f"voice_{uuid.uuid4().hex}.mp3"
     try:
-        # Faylni vaqtinchalik saqlash
-        path = f"v_{message.chat.id}.mp3"
         tts = gTTS(text=message.text, lang='uz')
-        tts.save(path)
-        
-        with open(path, 'rb') as audio:
-            bot.send_voice(message.chat.id, audio, caption="Siz uchun ovozli xabar! 🎤")
-        
-        os.remove(path) # Faylni o'chirib tashlaymiz
+        tts.save(file_name)
+        with open(file_name, 'rb') as audio:
+            bot.send_voice(message.chat.id, audio)
     except Exception as e:
-        bot.send_message(message.chat.id, "Kechirasiz, ovoz yaratishda xatolik bo'ldi. Matnni tekshiring.")
+        bot.send_message(message.chat.id, "Ovoz yaratishda xato bo'ldi.")
+    finally:
+        if os.path.exists(file_name):
+            os.remove(file_name)
 
-# --- INSTAGRAM VIDEO YUKLASH ---
+# --- INSTAGRAMNI TUZATISH ---
 def download_insta_video(message):
     wait = bot.send_message(message.chat.id, "Video yuklanmoqda... ⏳")
     try:
-        # Yangi va barqaror API
+        # User-Agent qo'shilgan holda yangi API
+        headers = {'User-Agent': 'Mozilla/5.0'}
         api_url = f"https://api.vyturex.com/instadl?url={message.text}"
-        res = requests.get(api_url).json()
+        res = requests.get(api_url, headers=headers, timeout=15).json()
         
         if 'video_url' in res:
-            bot.send_video(message.chat.id, res['video_url'], caption="Video yuklab berildi! ✅")
+            bot.send_video(message.chat.id, res['video_url'], caption="Tayyor! ✅")
             bot.delete_message(message.chat.id, wait.message_id)
         else:
-            bot.edit_message_text("Videoni topa olmadim. Profil yopiq bo'lishi mumkin.", message.chat.id, wait.message_id)
+            bot.edit_message_text("Video topilmadi yoki profil yopiq.", message.chat.id, wait.message_id)
     except:
-        bot.edit_message_text("Instagram xizmatida vaqtinchalik uzilish. Keyinroq urinib ko'ring.", message.chat.id, wait.message_id)
+        bot.edit_message_text("Instagram xizmati hozir band. Keyinroq urinib ko'ring.", message.chat.id, wait.message_id)
 
-# --- QO'LDA YOZISH ---
+# --- QO'LDA YOZISHNI TUZATISH ---
 def text_to_handwriting(message):
     try:
-        # Bo'shliqlarni to'g'rilash
-        text = message.text.replace(" ", "%20")
-        img_url = f"https://api.screenshotmachine.com/?key=ca7713&url=https://texttoimage.com/generate/?text={text}"
-        # Agar yuqoridagi ishlamasa, zaxira rasm:
-        bot.send_photo(message.chat.id, f"https://dummyimage.com/600x400/000/fff.png&text={text}", caption="✍️ Daftar varianti!")
+        # Ishonchliroq rasm generatori
+        encoded_text = requests.utils.quote(message.text)
+        img_url = f"https://api.screenshotmachine.com/?key=ca7713&url=https://texttoimage.com/generate/?text={encoded_text}"
+        bot.send_photo(message.chat.id, img_url, caption="✍️ Matn yozildi!")
     except:
-        bot.send_message(message.chat.id, "Rasmda xato.")
+        # Zaxira usul
+        bot.send_message(message.chat.id, "Rasm yaratishda xato. Matnni tekshiring.")
 
-# --- VALYUTA ---
 def get_currency(message):
     try:
         res = requests.get("https://cbu.uz/uz/arkhiv-kursov-valyut/json/").json()
         usd = next(item for item in res if item['Ccy'] == 'USD')
-        bot.send_message(message.chat.id, f"🇺🇸 1 USD = {usd['Rate']} so'm\n📅 {usd['Date']}")
+        bot.send_message(message.chat.id, f"🇺🇸 1 USD = {usd['Rate']} so'm")
     except:
         bot.send_message(message.chat.id, "Kursda xato.")
 
