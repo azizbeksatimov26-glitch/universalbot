@@ -1,3 +1,4 @@
 pyTelegramBotAPI
-gTTS
+gtts
 requests
+pillow
