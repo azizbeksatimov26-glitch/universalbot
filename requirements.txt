@@ -1,3 +1,2 @@
 pyTelegramBotAPI
-gTTS
-requests
+pyttsx3
