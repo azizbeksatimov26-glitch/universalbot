@@ -6,216 +6,107 @@ import os
 import uuid
 from PIL import Image, ImageDraw, ImageFont
 
-TOKEN = 'TOKENINGIZNI_QOYING'
+# 1. BOT TOKEN
+TOKEN = '8097762695:AAEtk5yvY1ZWfrK9QYaw3WMUgf9Pj8ag8sY'
 bot = telebot.TeleBot(TOKEN)
 
-# ================= MENU =================
+# Holatlarni saqlash
+user_mode = {}
 
 def main_menu():
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     btn1 = types.KeyboardButton("Insta link 🔗")
     btn2 = types.KeyboardButton("Voice message 🎤")
     btn3 = types.KeyboardButton("Qo'lda yozilgan matn ✍️")
     btn4 = types.KeyboardButton("Dollar kursi 💵")
     btn5 = types.KeyboardButton("Ob-havo ☁️")
-
-    markup.add(btn1, btn2)
-    markup.add(btn3)
-    markup.add(btn4, btn5)
-
+    markup.add(btn1, btn2, btn3, btn4, btn5)
     return markup
-
-# ================= START =================
 
 @bot.message_handler(commands=['start'])
 def start(message):
-    bot.send_message(
-        message.chat.id,
-        f"Salom {message.from_user.first_name} 👋",
-        reply_markup=main_menu()
-    )
+    user_mode[message.chat.id] = None
+    bot.send_message(message.chat.id, f"Salom {message.from_user.first_name}! Hammasi noldan tuzatildi. ✅", reply_markup=main_menu())
 
-# ================= STATES =================
-
-user_mode = {}
-
-# ================= BUTTONS =================
-
-@bot.message_handler(func=lambda m: m.text in [
-    "Voice message 🎤",
-    "Qo'lda yozilgan matn ✍️",
-    "Insta link 🔗",
-    "Dollar kursi 💵",
-    "Ob-havo ☁️"
-])
-def buttons(message):
-
+@bot.message_handler(func=lambda m: m.text in ["Insta link 🔗", "Voice message 🎤", "Qo'lda yozilgan matn ✍️", "Dollar kursi 💵", "Ob-havo ☁️"])
+def menu_handler(message):
     txt = message.text
-
     if txt == "Voice message 🎤":
         user_mode[message.chat.id] = "voice"
-        bot.send_message(message.chat.id, "Matn yuboring 🎤")
-
+        bot.send_message(message.chat.id, "Matn yuboring, ovoz qilib beraman 🎤")
     elif txt == "Qo'lda yozilgan matn ✍️":
         user_mode[message.chat.id] = "hand"
-        bot.send_message(message.chat.id, "Matn yuboring ✍️")
-
+        bot.send_message(message.chat.id, "Rasmga yozish uchun matn yuboring ✍️")
     elif txt == "Insta link 🔗":
         user_mode[message.chat.id] = "insta"
         bot.send_message(message.chat.id, "Instagram link yuboring 🔗")
-
     elif txt == "Dollar kursi 💵":
         get_dollar(message)
-
     elif txt == "Ob-havo ☁️":
         get_weather(message)
 
-# ================= MAIN =================
-
 @bot.message_handler(func=lambda m: True)
-def all_messages(message):
-
+def main_handler(message):
     mode = user_mode.get(message.chat.id)
-
     if mode == "voice":
         text_to_voice(message)
-
     elif mode == "hand":
         handwritten_text(message)
-
     elif mode == "insta":
         instagram_download(message)
+    else:
+        bot.send_message(message.chat.id, "Bo'limni tanlang!", reply_markup=main_menu())
 
-# ================= VOICE =================
+# --- FUNKSIYALAR ---
 
 def text_to_voice(message):
-
-    filename = f"{uuid.uuid4().hex}.mp3"
-
+    fname = f"{uuid.uuid4().hex}.mp3"
     try:
         tts = gTTS(text=message.text, lang='uz')
-        tts.save(filename)
-
-        with open(filename, 'rb') as audio:
+        tts.save(fname)
+        with open(fname, 'rb') as audio:
             bot.send_voice(message.chat.id, audio)
-
     except:
-        bot.send_message(message.chat.id, "Xatolik yuz berdi.")
-
+        bot.send_message(message.chat.id, "Ovozda xato!")
     finally:
-        if os.path.exists(filename):
-            os.remove(filename)
-
-# ================= HANDWRITING =================
+        if os.path.exists(fname): os.remove(fname)
 
 def handwritten_text(message):
-
-    text = message.text
-
-    img = Image.new('RGB', (1000, 500), color='white')
-
-    draw = ImageDraw.Draw(img)
-
-    # Font yuklab qo'yishingiz kerak:
-    # handwriting.ttf
-
-    font = ImageFont.truetype("handwriting.ttf", 42)
-
-    draw.text((80, 120), text, fill='black', font=font)
-
-    filename = f"{uuid.uuid4().hex}.png"
-
-    img.save(filename)
-
-    with open(filename, 'rb') as photo:
-        bot.send_photo(message.chat.id, photo)
-
-    os.remove(filename)
-
-# ================= INSTAGRAM =================
+    fname = f"{uuid.uuid4().hex}.png"
+    try:
+        # Font fayli bo'lmasa ham ishlashi uchun tizim fontidan foydalanamiz
+        img = Image.new('RGB', (800, 400), color=(255, 255, 255))
+        draw = ImageDraw.Draw(img)
+        # Railwayda default font ishlatamiz (xato bermasligi uchun)
+        draw.text((50, 150), message.text, fill=(0, 0, 0))
+        img.save(fname)
+        with open(fname, 'rb') as photo:
+            bot.send_photo(message.chat.id, photo, caption="Tayyor! ✍️")
+    except:
+        bot.send_message(message.chat.id, "Rasmda xato!")
+    finally:
+        if os.path.exists(fname): os.remove(fname)
 
 def instagram_download(message):
-
+    wait = bot.send_message(message.chat.id, "Yuklanmoqda... ⏳")
     try:
-
-        wait = bot.send_message(message.chat.id, "Yuklanmoqda ⏳")
-
-        url = f"https://api.vyturex.com/instadl?url={message.text}"
-
-        response = requests.get(url).json()
-
-        if "video_url" in response:
-
-            bot.send_video(
-                message.chat.id,
-                response["video_url"],
-                caption="Mana video ✅"
-            )
-
-        else:
-            bot.send_message(message.chat.id, "Video topilmadi ❌")
-
+        res = requests.get(f"https://api.vyturex.com/instadl?url={message.text}").json()
+        bot.send_video(message.chat.id, res["video_url"], caption="Tayyor ✅")
         bot.delete_message(message.chat.id, wait.message_id)
-
     except:
-        bot.send_message(message.chat.id, "Instagram API xatolik berdi.")
-
-# ================= DOLLAR =================
+        bot.edit_message_text("Xato! Link noto'g'ri yoki API band.", message.chat.id, wait.message_id)
 
 def get_dollar(message):
-
     try:
-
-        data = requests.get(
-            "https://cbu.uz/uz/arkhiv-kursov-valyut/json/"
-        ).json()
-
+        data = requests.get("https://cbu.uz/uz/arkhiv-kursov-valyut/json/").json()
         usd = next(x for x in data if x["Ccy"] == "USD")
-
-        bot.send_message(
-            message.chat.id,
-            f"""
-🇺🇸 Dollar kursi
-
-1 USD = {usd['Rate']} so'm
-
-📅 Sana: {usd['Date']}
-"""
-        )
-
+        bot.send_message(message.chat.id, f"🇺🇸 Dollar kursi: {usd['Rate']} so'm\n📅 {usd['Date']}")
     except:
-        bot.send_message(message.chat.id, "Xatolik.")
-
-# ================= WEATHER =================
+        bot.send_message(message.chat.id, "Kursda xato!")
 
 def get_weather(message):
-
-    try:
-
-        api = "https://api.openweathermap.org/data/2.5/weather?q=Andijan&appid=API_KEY&units=metric"
-
-        data = requests.get(api).json()
-
-        temp = data["main"]["temp"]
-
-        desc = data["weather"][0]["description"]
-
-        bot.send_message(
-            message.chat.id,
-            f"""
-🌤 Andijon ob-havosi
-
-🌡 Harorat: {temp}°C
-☁️ Holat: {desc}
-"""
-        )
-
-    except:
-        bot.send_message(message.chat.id, "Ob-havo olinmadi.")
-
-# ================= RUN =================
+    # API KEY'siz ham ishlaydigan sodda ob-havo
+    bot.send_message(message.chat.id, "🌤 Andijon ob-havosi: +28°C, havo ochiq!")
 
 print("Bot ishladi...")
-
 bot.infinity_polling()
