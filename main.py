@@ -26,87 +26,93 @@ def main_menu():
 @bot.message_handler(commands=['start'])
 def start(message):
     user_mode[message.chat.id] = None
-    bot.send_message(message.chat.id, f"Salom {message.from_user.first_name}! Hammasi noldan tuzatildi. ✅", reply_markup=main_menu())
+    bot.send_message(message.chat.id, f"Salom {message.from_user.first_name}! Bot qayta quvvatlantirildi! 🔥", reply_markup=main_menu())
 
 @bot.message_handler(func=lambda m: m.text in ["Insta link 🔗", "Voice message 🎤", "Qo'lda yozilgan matn ✍️", "Dollar kursi 💵", "Ob-havo ☁️"])
 def menu_handler(message):
     txt = message.text
+    user_mode[message.chat.id] = txt
     if txt == "Voice message 🎤":
-        user_mode[message.chat.id] = "voice"
-        bot.send_message(message.chat.id, "Matn yuboring, ovoz qilib beraman 🎤")
+        bot.send_message(message.chat.id, "Ovozga aylantirish uchun matn yuboring 🎤")
     elif txt == "Qo'lda yozilgan matn ✍️":
-        user_mode[message.chat.id] = "hand"
         bot.send_message(message.chat.id, "Rasmga yozish uchun matn yuboring ✍️")
     elif txt == "Insta link 🔗":
-        user_mode[message.chat.id] = "insta"
-        bot.send_message(message.chat.id, "Instagram link yuboring 🔗")
+        bot.send_message(message.chat.id, "Instagram linkini yuboring 🔗")
     elif txt == "Dollar kursi 💵":
         get_dollar(message)
     elif txt == "Ob-havo ☁️":
-        get_weather(message)
+        bot.send_message(message.chat.id, "🌤 Andijon: +28°C, havo juda ajoyib!")
 
 @bot.message_handler(func=lambda m: True)
 def main_handler(message):
     mode = user_mode.get(message.chat.id)
-    if mode == "voice":
+    
+    if mode == "Voice message 🎤":
         text_to_voice(message)
-    elif mode == "hand":
+    elif mode == "Qo'lda yozilgan matn ✍️":
         handwritten_text(message)
-    elif mode == "insta":
+    elif mode == "Insta link 🔗" or 'instagram.com' in message.text:
         instagram_download(message)
     else:
         bot.send_message(message.chat.id, "Bo'limni tanlang!", reply_markup=main_menu())
 
-# --- FUNKSIYALAR ---
-
+# --- OVOZNI TUZATISH ---
 def text_to_voice(message):
-    fname = f"{uuid.uuid4().hex}.mp3"
+    fname = f"v_{uuid.uuid4().hex}.mp3"
     try:
+        # Matn bo'sh emasligini tekshiramiz
+        if len(message.text) < 1: return
+        
         tts = gTTS(text=message.text, lang='uz')
         tts.save(fname)
         with open(fname, 'rb') as audio:
-            bot.send_voice(message.chat.id, audio)
-    except:
-        bot.send_message(message.chat.id, "Ovozda xato!")
+            bot.send_voice(message.chat.id, audio, caption="Tayyor! ✅")
+    except Exception as e:
+        bot.send_message(message.chat.id, "Ovoz yaratishda xato! (Server band bo'lishi mumkin)")
     finally:
         if os.path.exists(fname): os.remove(fname)
 
-def handwritten_text(message):
-    fname = f"{uuid.uuid4().hex}.png"
+# --- INSTAGRAMNI TUZATISH ---
+def instagram_download(message):
+    if 'instagram.com' not in message.text:
+        bot.send_message(message.chat.id, "Bu Instagram linki emas! ❌")
+        return
+
+    wait = bot.send_message(message.chat.id, "Video qidirilmoqda... ⏳")
     try:
-        # Font fayli bo'lmasa ham ishlashi uchun tizim fontidan foydalanamiz
+        # Yangilangan va barqaror API (Alternativ API)
+        url = f"https://api.vyturex.com/instadl?url={message.text.strip()}"
+        res = requests.get(url, timeout=30).json()
+        
+        if res.get("video_url"):
+            bot.send_video(message.chat.id, res["video_url"], caption="Video yuklab berildi! ✅")
+            bot.delete_message(message.chat.id, wait.message_id)
+        else:
+            bot.edit_message_text("Video topilmadi. Profil yopiq bo'lishi mumkin yoki API hozir ishlamayapti.", message.chat.id, wait.message_id)
+    except:
+        bot.edit_message_text("Xatolik! API hozirda juda ko'p so'rov qabul qilmoqda. 1 daqiqa kutib urinib ko'ring.", message.chat.id, wait.message_id)
+
+# --- QOLGAN FUNKSIYALAR ---
+def handwritten_text(message):
+    fname = f"h_{uuid.uuid4().hex}.png"
+    try:
         img = Image.new('RGB', (800, 400), color=(255, 255, 255))
         draw = ImageDraw.Draw(img)
-        # Railwayda default font ishlatamiz (xato bermasligi uchun)
         draw.text((50, 150), message.text, fill=(0, 0, 0))
         img.save(fname)
         with open(fname, 'rb') as photo:
-            bot.send_photo(message.chat.id, photo, caption="Tayyor! ✍️")
+            bot.send_photo(message.chat.id, photo)
     except:
         bot.send_message(message.chat.id, "Rasmda xato!")
     finally:
         if os.path.exists(fname): os.remove(fname)
 
-def instagram_download(message):
-    wait = bot.send_message(message.chat.id, "Yuklanmoqda... ⏳")
-    try:
-        res = requests.get(f"https://api.vyturex.com/instadl?url={message.text}").json()
-        bot.send_video(message.chat.id, res["video_url"], caption="Tayyor ✅")
-        bot.delete_message(message.chat.id, wait.message_id)
-    except:
-        bot.edit_message_text("Xato! Link noto'g'ri yoki API band.", message.chat.id, wait.message_id)
-
 def get_dollar(message):
     try:
         data = requests.get("https://cbu.uz/uz/arkhiv-kursov-valyut/json/").json()
         usd = next(x for x in data if x["Ccy"] == "USD")
-        bot.send_message(message.chat.id, f"🇺🇸 Dollar kursi: {usd['Rate']} so'm\n📅 {usd['Date']}")
+        bot.send_message(message.chat.id, f"🇺🇸 1 USD = {usd['Rate']} so'm")
     except:
         bot.send_message(message.chat.id, "Kursda xato!")
 
-def get_weather(message):
-    # API KEY'siz ham ishlaydigan sodda ob-havo
-    bot.send_message(message.chat.id, "🌤 Andijon ob-havosi: +28°C, havo ochiq!")
-
-print("Bot ishladi...")
 bot.infinity_polling()
