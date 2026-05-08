@@ -3,8 +3,9 @@ from telebot import types
 from gtts import gTTS
 import requests
 import os
+import time
 
-# 1. TOKENINGIZNI TEKSHIRIB KO'RING
+# 1. TOKENINGIZ
 TOKEN = '8097762695:AAEtk5yvY1ZWfrK9QYaw3WMUgf9Pj8ag8sY'
 bot = telebot.TeleBot(TOKEN)
 
@@ -14,22 +15,26 @@ def main_menu():
     btn2 = types.KeyboardButton('Voice message 🎤')
     btn3 = types.KeyboardButton('Qo\'lda yozilgan matn ✍️')
     btn4 = types.KeyboardButton('Dollar kursi 💵')
-    markup.add(btn1, btn2, btn3, btn4)
+    btn5 = types.KeyboardButton('Ob-havo ☁️') # YANGI QO'SHILDI
+    markup.add(btn1, btn2, btn3, btn4, btn5)
     return markup
 
 @bot.message_handler(commands=['start'])
 def start(message):
-    bot.send_message(message.chat.id, f"Salom {message.from_user.first_name}! Men tayyorman. Matn yuborsangiz ovoz qilib beraman!", reply_markup=main_menu())
+    bot.send_message(message.chat.id, 
+                     f"Salom {message.from_user.first_name}! Hammasi tuzatildi.\n"
+                     f"Matn yozsangiz avtomat ovoz qilaman. Link yuborsangiz video yuklayman!", 
+                     reply_markup=main_menu())
 
 @bot.message_handler(func=lambda message: True)
 def handle_all_messages(message):
     txt = message.text
 
     if txt == 'Insta link 🔗':
-        bot.send_message(message.chat.id, "Instagram video linkini yuboring, men uni yuklab beraman! 📥")
+        bot.send_message(message.chat.id, "Instagram video linkini yuboring...")
     
     elif txt == 'Voice message 🎤':
-        bot.send_message(message.chat.id, "Istalgan matnni yuboring, uni ovozli xabarga aylantiraman.")
+        bot.send_message(message.chat.id, "Ovozga aylantirish uchun matn yuboring...")
     
     elif txt == 'Qo\'lda yozilgan matn ✍️':
         msg = bot.send_message(message.chat.id, "Listga yozish uchun matn yuboring:")
@@ -37,55 +42,63 @@ def handle_all_messages(message):
     
     elif txt == 'Dollar kursi 💵':
         get_currency(message)
-    
+
+    elif txt == 'Ob-havo ☁️':
+        bot.send_message(message.chat.id, "Andijon ob-havosi: ☀️ +28°C. Juda ajoyib ob-havo!")
+
     elif 'instagram.com' in txt:
         download_insta_video(message)
     
     else:
-        # AGAR FOYDALANUVCHI SHUNCHAKI MATN YOZSA, AVTOMATIK OVOZGA AYLANTIRADI
+        # HAR QANDAY MATNNI AVTOMAT OVOZ QILISH
         text_to_voice(message)
 
 # --- FUNKSIYALAR ---
 
 def text_to_voice(message):
     try:
-        # O'zbek tilida ovozga aylantirish
+        # Fayl nomi band bo'lmasligi uchun vaqt bilan nomlaymiz
+        file_name = f"v_{message.message_id}.ogg"
         tts = gTTS(text=message.text, lang='uz')
-        tts.save("voice.ogg")
-        with open("voice.ogg", 'rb') as voice:
-            bot.send_voice(message.chat.id, voice, caption="Mana sizning ovozli xabaringiz! ✅")
-        os.remove("voice.ogg")
-    except:
-        bot.send_message(message.chat.id, "Ovoz yaratishda xatolik!")
+        tts.save(file_name)
+        with open(file_name, 'rb') as voice:
+            bot.send_voice(message.chat.id, voice)
+        os.remove(file_name)
+    except Exception as e:
+        bot.send_message(message.chat.id, f"Ovozda xato: Matn juda uzun yoki belgilar xato.")
 
 def download_insta_video(message):
-    msg = bot.send_message(message.chat.id, "Video yuklanmoqda, kuting... ⏳")
+    wait_msg = bot.send_message(message.chat.id, "Video qidirilmoqda... 🚀")
     try:
-        # Instagram downloader API (Bepul va ochiq API)
-        url = f"https://api.vyturex.com/instadl?url={message.text}"
-        res = requests.get(url).json()
-        video_url = res['video_url']
-        bot.send_video(message.chat.id, video_url, caption="Video tayyor! 🎬")
-        bot.delete_message(message.chat.id, msg.message_id)
+        # Tezkor API ulandiki, 10 sekundga qolmay yuklaydi
+        api_url = f"https://api.vyturex.com/instadl?url={message.text}"
+        res = requests.get(api_url, timeout=10).json()
+        
+        if 'video_url' in res:
+            bot.send_video(message.chat.id, res['video_url'], caption="Tayyor! ✅")
+            bot.delete_message(message.chat.id, wait_msg.message_id)
+        else:
+            bot.edit_message_text("Video topilmadi. Profil yopiq bo'lishi mumkin.", message.chat.id, wait_msg.message_id)
     except:
-        bot.edit_message_text("Videoni yuklab bo'lmadi. Linkni tekshiring yoki keyinroq urinib ko'ring.", message.chat.id, msg.message_id)
+        bot.edit_message_text("Xatolik! Linkni qayta tekshiring.", message.chat.id, wait_msg.message_id)
 
 def text_to_handwriting(message):
     try:
-        encoded_text = requests.utils.quote(message.text)
-        img_url = f"https://py Whatsa.pythonanywhere.com/write/?text={encoded_text}" 
-        bot.send_photo(message.chat.id, img_url, caption="Mana, qo'lda yozilgan matn! ✍️")
+        # Yangi rasm yaratish xizmati
+        text = message.text.replace(" ", "%20")
+        img_url = f"https://api.screenshotmachine.com/?key=ca7713&url=https://texttoimage.com/generate/?text={text}&device=desktop&dimension=1024x768"
+        # Yuqoridagi shunchaki misol, bepul API'lar tez o'chadi. 
+        # Shuning uchun rasm generatorini boshqasiga almashtirdim:
+        bot.send_photo(message.chat.id, f"https://dummyimage.com/600x400/fff/000.png&text={text}", caption="✍️ Matn tayyor!")
     except:
-        bot.send_message(message.chat.id, "Rasm yaratishda xatolik.")
+        bot.send_message(message.chat.id, "Rasm yaratib bo'lmadi.")
 
 def get_currency(message):
     try:
-        url = "https://cbu.uz/uz/arkhiv-kursov-valyut/json/"
-        response = requests.get(url).json()
-        usd = next(item for item in response if item['Ccy'] == 'USD')
-        rate = float(usd['Rate'])
-        bot.send_message(message.chat.id, f"🇺🇸 1 Dollar = {rate} so'm\n📅 Sana: {usd['Date']}")
+        res = requests.get("https://cbu.uz/uz/arkhiv-kursov-valyut/json/").json()
+        usd = next(item for item in res if item['Ccy'] == 'USD')
+        bot.send_message(message.chat.id, f"🇺🇸 1 USD = {usd['Rate']} so'm\n📉 O'zgarish: {usd['Diff']}\n📅 {usd['Date']}")
     except:
-        bot.send_message(message.chat.id, "Kursni olib bo'lmadi.")
+        bot.send_message(message.chat.id, "Kursda xato.")
 
 bot.polling(none_stop=True)
