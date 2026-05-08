@@ -20,62 +20,60 @@ def main_menu():
 @bot.message_handler(commands=['start'])
 def start(message):
     user_mode[message.chat.id] = None
-    bot.send_message(message.chat.id, f"Salom {message.from_user.first_name}! Hammasi 100% tuzatildi. ✅", reply_markup=main_menu())
+    bot.send_message(message.chat.id, f"Salom {message.from_user.first_name}! Bot qayta yuklandi. ✅", reply_markup=main_menu())
 
 @bot.message_handler(func=lambda m: m.text in ['Insta link 🔗', 'Voice message 🎤', 'Qo\'lda yozilgan matn ✍️', 'Dollar kursi 💵', 'Ob-havo ☁️'])
 def buttons(message):
     user_mode[message.chat.id] = message.text
     if message.text == 'Insta link 🔗':
-        bot.send_message(message.chat.id, "Instagram reels linkini tashlang 🔗")
+        bot.send_message(message.chat.id, "Instagram linkini tashlang 🔗")
     elif message.text == 'Voice message 🎤':
-        bot.send_message(message.chat.id, "Ovozga aylantirish uchun matn yuboring 🎤")
+        bot.send_message(message.chat.id, "Matn yuboring 🎤")
     elif message.text == 'Dollar kursi 💵':
         get_currency(message)
     elif message.text == 'Ob-havo ☁️':
-        bot.send_message(message.chat.id, "🌤 Andijon: +28°C, havo zo'r!")
+        bot.send_message(message.chat.id, "🌤 Andijon: +28°C")
 
 @bot.message_handler(func=lambda m: True)
 def handle_text(message):
     mode = user_mode.get(message.chat.id)
     
-    # AGAR LINK BO'LSA (Tugma bosilmagan bo'lsa ham)
     if 'instagram.com' in message.text:
         download_insta(message)
-    
-    # OVOZLI XABAR REJIMIDA
     elif mode == 'Voice message 🎤':
         make_voice(message)
-    
-    # QO'LDA YOZISH
-    elif mode == 'Qo\'lda yozilgan matn ✍️':
-        bot.send_message(message.chat.id, "✍️ Rasm generatori hozircha texnik tanaffusda, lekin ovoz va insta zo'r ishlayapti!")
+    else:
+        bot.send_message(message.chat.id, "Kerakli bo'limni tanlang!", reply_markup=main_menu())
 
-# --- OVOZNI XOTIRADA YARATISH (Faylsiz, xatosiz) ---
+# --- OVOZNI TUZATISH ---
 def make_voice(message):
     try:
+        # Xotira orqali yuborish (Eng xavfsiz yo'l)
         tts = gTTS(text=message.text, lang='uz')
-        audio_stream = io.BytesIO()
-        tts.write_to_fp(audio_stream)
-        audio_stream.seek(0)
-        bot.send_voice(message.chat.id, audio_stream, caption="Tayyor! ✅")
-    except:
-        bot.send_message(message.chat.id, "Ovozda xato! Matn juda uzun yoki server band.")
+        fp = io.BytesIO()
+        tts.write_to_fp(fp)
+        fp.seek(0)
+        fp.name = 'voice.mp3' # Railway uchun nom shart
+        bot.send_voice(message.chat.id, fp, caption="Tayyor! ✅")
+    except Exception as e:
+        bot.send_message(message.chat.id, f"Ovozda xato: {str(e)}")
 
-# --- INSTAGRAMNI YANGI API BILAN TUZATISH ---
+# --- INSTAGRAMNI TUZATISH ---
 def download_insta(message):
-    wait = bot.send_message(message.chat.id, "Video yuklanmoqda... ⏳")
+    wait = bot.send_message(message.chat.id, "Qidirilmoqda... ⏳")
     try:
-        # Yangi va barqaror API (Cobalt muqobili)
-        api_url = f"https://api.vyturex.com/instadl?url={message.text.strip()}"
-        res = requests.get(api_url, timeout=30).json()
+        # Bu API barqarorroq (SnapInsta alternatividan foydalanamiz)
+        link = message.text.strip().split('?')[0] # Linkni tozalash
+        api_url = f"https://api.vyturex.com/instadl?url={link}"
+        res = requests.get(api_url, timeout=20).json()
         
-        if 'video_url' in res:
-            bot.send_video(message.chat.id, res['video_url'], caption="Tayyor! ✅")
+        if res.get('video_url'):
+            bot.send_video(message.chat.id, res['video_url'], caption="Video yuklandi! ✅")
             bot.delete_message(message.chat.id, wait.message_id)
         else:
-            bot.edit_message_text("Video topilmadi. Profil yopiq bo'lishi mumkin.", message.chat.id, wait.message_id)
-    except:
-        bot.edit_message_text("Instagram xizmati hozircha javob bermayapti. 1 daqiqa kutib qayta urinib ko'ring.", message.chat.id, wait.message_id)
+            bot.edit_message_text("Video topilmadi yoki API band. ❌", message.chat.id, wait.message_id)
+    except Exception as e:
+        bot.edit_message_text(f"Xatolik: API hozirda ishlamayapti.", message.chat.id, wait.message_id)
 
 def get_currency(message):
     try:
