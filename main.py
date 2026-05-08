@@ -5,7 +5,7 @@ import requests
 import os
 
 # 1. BOT TOKENINGIZNI SHU YERGA YOZING
-TOKEN = 'BU_YERGA_TOKENNI_QOYING'
+TOKEN = '8097762695:AAEtk5yvY1ZWfrK9QYaw3WMUgf9Pj8ag8sY'
 bot = telebot.TeleBot(TOKEN)
 
 # Tugmalar menyusi
